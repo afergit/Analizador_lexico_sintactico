@@ -87,7 +87,12 @@ public:
         // Números
         if (isdigit(actual)) {
             string numero = "";
+            bool puntoDecimal = false;
             while (posicion < codigo.length() && (isdigit(codigo[posicion]) || codigo[posicion] == '.')) {
+                if (codigo[posicion] == '.') {
+                    if (puntoDecimal) break; // Ya hay un punto decimal
+                    puntoDecimal = true;
+                }
                 numero += codigo[posicion++];
             }
             token.tipo = NUMERO;
