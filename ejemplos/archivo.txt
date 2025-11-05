@@ -1,8 +1,9 @@
-int suma = 10 + 20;
-float resultado = 3.14 * 2;
-if (suma > 25) {
-    resultado = suma / 2;
+int x = 5;
+x = x + 1;
+if (x > 3) {
+    x = x + 1;
+} else {
+    x = x * 2;
 }
-while (resultado < 100) {
-    resultado = resultado + 5;
-}
+
+cout<<"Valor de X: "<<x;
