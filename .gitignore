@@ -1,0 +1,15 @@
+# Archivos compilados
+*.o
+*.exe
+*.out
+a.out
+main
+
+# Archivos temporales
+*.tmp
+*.swp
+*~
+
+# Carpetas de compilación
+build/
+dist/
