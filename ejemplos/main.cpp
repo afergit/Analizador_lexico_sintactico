@@ -1,273 +1,302 @@
 #include <iostream>
 #include <fstream>
-#include <string>
 #include <cctype>
+#include <string>
 #include <vector>
 
 using namespace std;
 
-// Tipos de tokens
-enum TipoToken {
-    PALABRA_CLAVE,
-    IDENTIFICADOR,
-    NUMERO,
-    OPERADOR,
-    DELIMITADOR,
-    DESCONOCIDO,
-    FIN_ARCHIVO
+// === Tipos de Tokens ===
+enum TokenType {
+    COUT, SHIFT, STRING,
+    IF, ELSE, INT, FLOAT, CHAR,
+    IDENTIFIER, NUMBER,
+    ASSIGN, SEMICOLON,
+    LPAREN, RPAREN, LBRACE, RBRACE,
+    PLUS, MULT, REL_OP,
+    UNKNOWN, END
 };
 
-// Estructura para representar un token
+string tokenTypeToString(TokenType type) {
+    switch (type) {
+        case IF: return "IF"; case ELSE: return "ELSE";
+        case INT: return "INT"; case FLOAT: return "FLOAT"; case CHAR: return "CHAR";
+        case IDENTIFIER: return "IDENTIFIER"; case NUMBER: return "NUMBER";
+        case ASSIGN: return "ASSIGN"; case SEMICOLON: return "SEMICOLON";
+        case LPAREN: return "IZQ_PAREN"; case RPAREN: return "DER_PAREN";
+        case LBRACE: return "IZQ_BRACE"; case RBRACE: return "DER_BRACE";
+        case PLUS: return "MAS"; case MULT: return "MULT"; case REL_OP: return "REL_OP";
+        case UNKNOWN: return "UNKNOWN"; case END: return "END";
+        case COUT: return "COUT"; case SHIFT: return "SHIFT"; case STRING: return "STRING";
+        default: return "UNDEFINED";
+    }
+}
+
 struct Token {
-    TipoToken tipo;
-    string valor;
-    int linea;
+    TokenType type;
+    string value;
 };
 
-// Clase Analizador Léxico
-class AnalizadorLexico {
-private:
-    string codigo;
-    size_t posicion;
-    int linea;
-    
-    bool esPalabraClave(const string& palabra) {
-        return (palabra == "int" || palabra == "float" || palabra == "if" || 
-                palabra == "while" || palabra == "for" || palabra == "return");
-    }
-    
-    bool esOperador(char c) {
-        return (c == '+' || c == '-' || c == '*' || c == '/' || 
-                c == '=' || c == '<' || c == '>');
-    }
-    
-    bool esDelimitador(char c) {
-        return (c == '(' || c == ')' || c == '{' || c == '}' || 
-                c == ';' || c == ',');
-    }
-    
-public:
-    AnalizadorLexico(const string& cod) : codigo(cod), posicion(0), linea(1) {}
-    
-    Token siguienteToken() {
-        Token token;
-        token.linea = linea;
-        
-        // Saltar espacios en blanco
-        while (posicion < codigo.length() && isspace(codigo[posicion])) {
-            if (codigo[posicion] == '\n') linea++;
-            posicion++;
-        }
-        
-        // Fin del archivo
-        if (posicion >= codigo.length()) {
-            token.tipo = FIN_ARCHIVO;
-            token.valor = "";
-            return token;
-        }
-        
-        char actual = codigo[posicion];
-        
-        // Identificadores y palabras clave
-        if (isalpha(actual)) {
-            string palabra = "";
-            while (posicion < codigo.length() && (isalnum(codigo[posicion]) || codigo[posicion] == '_')) {
-                palabra += codigo[posicion++];
-            }
-            
-            if (esPalabraClave(palabra)) {
-                token.tipo = PALABRA_CLAVE;
-            } else {
-                token.tipo = IDENTIFICADOR;
-            }
-            token.valor = palabra;
-            return token;
-        }
-        
-        // Números
-        if (isdigit(actual)) {
-            string numero = "";
-            bool puntoDecimal = false;
-            while (posicion < codigo.length() && (isdigit(codigo[posicion]) || codigo[posicion] == '.')) {
-                if (codigo[posicion] == '.') {
-                    if (puntoDecimal) break; // Ya hay un punto decimal
-                    puntoDecimal = true;
-                }
-                numero += codigo[posicion++];
-            }
-            token.tipo = NUMERO;
-            token.valor = numero;
-            return token;
-        }
-        
-        // Operadores
-        if (esOperador(actual)) {
-            token.tipo = OPERADOR;
-            token.valor = string(1, actual);
-            posicion++;
-            return token;
-        }
-        
-        // Delimitadores
-        if (esDelimitador(actual)) {
-            token.tipo = DELIMITADOR;
-            token.valor = string(1, actual);
-            posicion++;
-            return token;
-        }
-        
-        // Token desconocido
-        token.tipo = DESCONOCIDO;
-        token.valor = string(1, actual);
-        posicion++;
-        return token;
-    }
-};
+// === Lexer ===
+bool isLetter(char c) { return isalpha(c); }
+bool isDigit(char c) { return isdigit(c); }
+bool isRelOpStart(char c) { return c == '<' || c == '>' || c == '=' || c == '!'; }
 
-// Clase Analizador Sintáctico
-class AnalizadorSintactico {
-private:
+
+
+Token getRelOp(ifstream &in, char first) {
+    char second = in.peek();
+    string op(1, first);
+    if ((first == '=' || first == '!') && second == '=') {
+        in.get();
+        op += second;
+    }
+    return {REL_OP, op};
+}
+
+vector<Token> lexer(const string& filename) {
+    ifstream in(filename);
     vector<Token> tokens;
-    size_t posicion;
-    
-    Token tokenActual() {
-        if (posicion < tokens.size()) {
-            return tokens[posicion];
-        }
-        Token token;
-        token.tipo = FIN_ARCHIVO;
-        return token;
+
+    if (!in.is_open()) {
+        cerr << "Error: no se pudo abrir el archivo " << filename << endl;
+        return tokens;
     }
-    
-    void avanzar() {
-        if (posicion < tokens.size()) {
-            posicion++;
-        }
-    }
-    
-    bool verificar(TipoToken tipo) {
-        return tokenActual().tipo == tipo;
-    }
-    
-    void esperarToken(TipoToken tipo, const string& mensaje) {
-        if (!verificar(tipo)) {
-            cout << "Error sintáctico en línea " << tokenActual().linea 
-                 << ": " << mensaje << endl;
-            return;
-        }
-        avanzar();
-    }
-    
-    // Analiza una declaración
-    void analizarDeclaracion() {
-        if (verificar(PALABRA_CLAVE)) {
-            cout << "Declaración encontrada: " << tokenActual().valor << endl;
-            avanzar();
-            esperarToken(IDENTIFICADOR, "Se esperaba un identificador");
-            
-            if (verificar(OPERADOR) && tokenActual().valor == "=") {
-                avanzar();
-                analizarExpresion();
+
+    char c;
+    while (in.get(c)) {
+        if (isspace(c)) continue;
+
+        if (isLetter(c)) {
+            string word(1, c);
+            while (isLetter(in.peek()) || isDigit(in.peek())) {
+                in.get(c);
+                word += c;
             }
-            
-            esperarToken(DELIMITADOR, "Se esperaba ';'");
+
+            if (word == "if") tokens.push_back({IF, word});
+            else if (word == "else") tokens.push_back({ELSE, word});
+            else if (word == "int") tokens.push_back({INT, word});
+            else if (word == "float") tokens.push_back({FLOAT, word});
+            else if (word == "char") tokens.push_back({CHAR, word});
+            else if (word == "cout") tokens.push_back({COUT, word});
+            else tokens.push_back({IDENTIFIER, word});
         }
+        else if (isDigit(c)) {
+            string num(1, c);
+            while (isDigit(in.peek())) {
+                in.get(c);
+                num += c;
+            }
+            tokens.push_back({NUMBER, num});
+        }
+        else if (c == '=') {
+            char next = in.peek();
+            if (next == '=') {
+                in.get();
+                tokens.push_back({REL_OP, "=="});
+            } else {
+                tokens.push_back({ASSIGN, "="});
+            }
+        }
+        else if (isRelOpStart(c)) {
+            if (c == '<' && in.peek() == '<') { // consume el segundo '<'
+                in.get(c);
+                tokens.push_back({SHIFT, "<<"});
+            } else {
+                tokens.push_back(getRelOp(in, c));
+            }
+        }
+        else if (c == '"') {
+            string str;
+            while (in.peek() != '"' && in.peek() != EOF) {
+                in.get(c);
+                str += c;
+            }
+            in.get(); // consumir la comilla final
+            tokens.push_back({STRING, str});
+        }
+
+        else if (c == ';') tokens.push_back({SEMICOLON, ";"});
+        else if (c == '(') tokens.push_back({LPAREN, "("});
+        else if (c == ')') tokens.push_back({RPAREN, ")"});
+        else if (c == '{') tokens.push_back({LBRACE, "{"});
+        else if (c == '}') tokens.push_back({RBRACE, "}"});
+        else if (c == '+') tokens.push_back({PLUS, "+"});
+        else if (c == '*') tokens.push_back({MULT, "*"});
+        else tokens.push_back({UNKNOWN, string(1, c)});
     }
-    
-    // Analiza una expresión simple
-    void analizarExpresion() {
-        if (verificar(NUMERO) || verificar(IDENTIFICADOR)) {
-            avanzar();
-            
-            while (verificar(OPERADOR)) {
-                avanzar();
-                if (verificar(NUMERO) || verificar(IDENTIFICADOR)) {
-                    avanzar();
+
+    tokens.push_back({END, ""});
+    return tokens;
+}
+
+// === Parser ===
+class Parser {
+    vector<Token> tokens;
+    int pos;
+
+public:
+    Parser(const vector<Token>& t) : tokens(t), pos(0) {}
+
+    Token current() { return tokens[pos]; }
+    void advance() { if (pos < tokens.size()) pos++; }
+    bool match(TokenType type) {
+        if (current().type == type) {
+            advance();
+            return true;
+        }
+        return false;
+    }
+
+
+    bool parseAssignment() {
+        if (match(IDENTIFIER)) {
+            if (match(ASSIGN)) {
+                if (parseExpression()) {
+                    if (match(SEMICOLON)) {
+                        cout << "Asignacion valida";
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    bool parseDeclaration() {
+            if (match(INT) || match(FLOAT) || match(CHAR)) {
+                if (match(IDENTIFIER)) {
+                    if (match(ASSIGN)) {
+                        if (parseExpression()) {
+                            if (match(SEMICOLON)) {
+                                //cout << "Declaracion valida\n";
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+    bool parseExpression() {
+        if (!parseTerm()) return false;
+        while (match(PLUS)) {
+            if (!parseTerm()) return false;
+        }
+        return true;
+    }
+
+    bool parseTerm() {
+        if (!parseFactor()) return false;
+        while (match(MULT)) {
+            if (!parseFactor()) return false;
+        }
+        return true;
+    }
+
+    bool parseFactor() {
+        if (match(LPAREN)) {
+            if (parseExpression() && match(RPAREN)) return true;
+            return false;
+        }
+        if (match(NUMBER) || match(IDENTIFIER)) return true;
+        return false;
+    }
+
+    bool parseCondition() {
+        if (parseExpression()) {
+            if (match(REL_OP)) {
+                return parseExpression();
+            }
+        }
+            return false;
+    }
+
+
+    bool parseOutput() {
+        if (match(COUT)) {
+            while (match(SHIFT)) {
+                if (match(STRING) || match(IDENTIFIER) || match(NUMBER)) {
+                    continue;
+                } else {
+                    return false;
+                }
+            }
+            if (match(SEMICOLON)) {
+                //cout << "Instruccion de salida valida\n";
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    bool parseIfStatement() {
+    if (match(IF)) {
+        if (match(LPAREN)) {
+            if (parseCondition() && match(RPAREN)) {
+                if (match(LBRACE)) {
+                    while (current().type != RBRACE && current().type != END) {
+                        if (!parseDeclaration() && !parseAssignment() && !parseIfStatement()) {
+                            return false;
+                        }
+                    }
+                    if (!match(RBRACE)) return false;
+
+                    if (match(ELSE)) {
+                        if (match(LBRACE)) {
+                            while (current().type != RBRACE && current().type != END) {
+                                if (!parseDeclaration() && !parseAssignment() && !parseIfStatement()) {
+                                    return false;
+                                }
+                            }
+                            return match(RBRACE);
+                        }
+                        return false;
+                    }
+                    return true;
                 }
             }
         }
     }
-    
-public:
-    AnalizadorSintactico(const vector<Token>& toks) : tokens(toks), posicion(0) {}
-    
-    void analizar() {
-        cout << "\n=== Análisis Sintáctico ===" << endl;
-        while (!verificar(FIN_ARCHIVO)) {
-            if (verificar(PALABRA_CLAVE)) {
-                analizarDeclaracion();
-            } else {
-                avanzar();
+    return false;
+}
+
+    void parse() {
+        while (current().type != END) {
+            if (parseDeclaration()) {
+                cout << "Declaracion valida\n";
+            } else if (parseIfStatement()) {
+                cout << "Condicional valida\n";
+            } else if (parseOutput()) {
+                cout << "Instruccion de salida valida\n";
+            } else if(parseAssignment()){
+                cout << "Asignacion valida\n";
+            }
+            else {
+                cout << "Error de sintaxis\n";
+                break;
             }
         }
-        cout << "Análisis sintáctico completado." << endl;
     }
+
 };
 
+// === Main ===
 int main() {
-    cout << "=== Analizador Léxico y Sintáctico ===" << endl;
-    cout << "Curso de Compiladores - Ejemplo Básico\n" << endl;
-    
-    // Leer archivo de entrada
-    ifstream archivo("ejemplos/archivo.txt");
-    if (!archivo.is_open()) {
-        cout << "Error: No se pudo abrir el archivo 'ejemplos/archivo.txt'" << endl;
-        cout << "Asegúrate de que el archivo existe en la carpeta 'ejemplos/'" << endl;
-        return 1;
+    string filename = "archivo.txt";
+    vector<Token> tokens = lexer(filename);
+
+    cout << "=== Tokens ===\n";
+    for (const Token& token : tokens) {
+        cout << "Token: " << token.value << " | Tipo: " << tokenTypeToString(token.type) << endl;
     }
-    
-    string codigo((istreambuf_iterator<char>(archivo)), istreambuf_iterator<char>());
-    archivo.close();
-    
-    cout << "Código fuente a analizar:" << endl;
-    cout << "------------------------" << endl;
-    cout << codigo << endl;
-    cout << "------------------------\n" << endl;
-    
-    // Análisis Léxico
-    AnalizadorLexico lexico(codigo);
-    vector<Token> tokens;
-    
-    cout << "=== Análisis Léxico ===" << endl;
-    cout << "Tokens encontrados:" << endl;
-    
-    Token token;
-    do {
-        token = lexico.siguienteToken();
-        tokens.push_back(token);
-        
-        if (token.tipo != FIN_ARCHIVO) {
-            cout << "Línea " << token.linea << " - ";
-            switch (token.tipo) {
-                case PALABRA_CLAVE:
-                    cout << "PALABRA_CLAVE: " << token.valor << endl;
-                    break;
-                case IDENTIFICADOR:
-                    cout << "IDENTIFICADOR: " << token.valor << endl;
-                    break;
-                case NUMERO:
-                    cout << "NUMERO: " << token.valor << endl;
-                    break;
-                case OPERADOR:
-                    cout << "OPERADOR: " << token.valor << endl;
-                    break;
-                case DELIMITADOR:
-                    cout << "DELIMITADOR: " << token.valor << endl;
-                    break;
-                case DESCONOCIDO:
-                    cout << "DESCONOCIDO: " << token.valor << endl;
-                    break;
-                default:
-                    break;
-            }
-        }
-    } while (token.tipo != FIN_ARCHIVO);
-    
-    // Análisis Sintáctico
-    AnalizadorSintactico sintactico(tokens);
-    sintactico.analizar();
-    
-    cout << "\n=== Análisis Completado ===" << endl;
-    
+
+    cout << "\n=== Analisis Sintactico ===\n";
+    Parser parser(tokens);
+    parser.parse();
+
     return 0;
 }
